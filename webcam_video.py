@@ -133,6 +133,7 @@ if __name__ == '__main__':
         print("[Error] : Could not open webcam.")
         exit(0)
     
+    pos_before = np.zeros(2)
     while webcam.isOpened():
         status, frame = webcam.read()
 
@@ -143,16 +144,101 @@ if __name__ == '__main__':
                 img_shape = frame
                 
                 tracking_results = mot(img_shape)
+                key_list = list(tracking_results.keys())
+
+                # for person_id in key_list:
+                #     bboxes = tracking_results[person_id]['bbox']
+                #     bbox = bboxes[0]
+                #     img_RGB = cv2.cvtColor(img_shape, cv2.COLOR_BGR2RGB)
+
+                #     norm_img, _, _ = get_single_image_crop_demo(
+                #         img_RGB,
+                #         bbox,
+                #         kp_2d=None,
+                #         scale=bbox_scale,
+                #         crop_size=crop_size)
+                    
+                #     norm_img = norm_img.reshape((1, 3, crop_size, crop_size))
+                    
+                #     with torch.no_grad():
+                #         preds_dict, _ = model(norm_img.to(device))
+
+                #         output = preds_dict['smpl_out'][-1]
+
+                #         pred_cam = torch.cat([output['theta'][:, :3].reshape(1, -1)], dim=0)
+                #         pred_verts = torch.cat([output['verts'].reshape(1, -1, 3)], dim=0)
+                #         pred_joints3d = torch.cat([output['kp_3d'].reshape(1, -1, 3)], dim=0)
+
+                #     mid2 = time.time()
+                #     fps = 1 / (mid2 - mid1)
+                #     print(f'PyMAF FPS: {fps:.2f}')
+                #     mid1 = mid2
+
+                #     # ========= Save results to a pickle file ========= #
+                #     pred_cam = pred_cam.cpu().numpy()
+                #     pred_verts = pred_verts.cpu().numpy()
+                #     pred_joints3d = pred_joints3d.cpu().numpy()
+
+                #     orig_cam = convert_crop_cam_to_orig_img(
+                #         cam=pred_cam,
+                #         bbox=bboxes,
+                #         img_width=orig_height,
+                #         img_height=orig_width,
+                #         # img_width=img_width,
+                #         # img_height=img_height,
+                #     )
+
+                #     img_shape = renderer(
+                #         pred_verts[0],
+                #         img=img_shape,
+                #         cam=orig_cam[0],
+                #         color_type='purple',
+                #     )
+
+                #     # img_shape = renderer.draw_smpl_kp_3d(
+                #     #     pred_joints3d[0],
+                #     #     img=img_shape,
+                #     #     cam=orig_cam[0],
+                #     #     color_type='red',
+                #     # )
+
+                #     mid2 = time.time()
+                #     fps = 1 / (mid2 - mid1)
+                #     print(f'Rendering FPS: {fps:.2f}')
+                #     mid1 = mid2
+
+                #     # Draw one person
+                #     break
+
+
+                if len(key_list) == 0:
+                    draw_key = -1
+                elif len(key_list) == 1:
+                    draw_key = key_list[0]
+                elif len(key_list) >= 1:
+                    draw_key = key_list[0]
+                    bbox = tracking_results[draw_key]['bbox'][0]
+                    area = bbox[2] * bbox[3]
+                    for k_ in key_list:
+                        cand_bbox = tracking_results[k_]['bbox'][0]
+                        cand_area = cand_bbox[2] * cand_bbox[3]
+
+                        if cand_area > area:
+                            area = cand_area
+                            draw_key = k_
+                        elif cand_area == area:
+                            if np.linalg.norm(np.array(cand_bbox[0], cand_bbox[1]) - pos_before) < np.linalg.norm(np.array(bbox[0], bbox[1]) - pos_before):
+                                area = cand_area
+                                draw_key = k_
+                    pos_before = np.array(tracking_results[draw_key]['bbox'][2:])
 
                 mid1 = time.time()
                 fps = 1 / (mid1 - pred_time)
                 print(f'YOLO FPS: {fps:.2f}')
 
-                key_list = list(tracking_results.keys())
-                for person_id in key_list:
-                    bboxes = tracking_results[person_id]['bbox']
+                if draw_key != -1:
+                    bboxes = tracking_results[draw_key]['bbox']
                     bbox = bboxes[0]
-                    frames = tracking_results[person_id]['frames']
                     img_RGB = cv2.cvtColor(img_shape, cv2.COLOR_BGR2RGB)
 
                     norm_img, _, _ = get_single_image_crop_demo(
@@ -171,7 +257,7 @@ if __name__ == '__main__':
 
                         pred_cam = torch.cat([output['theta'][:, :3].reshape(1, -1)], dim=0)
                         pred_verts = torch.cat([output['verts'].reshape(1, -1, 3)], dim=0)
-                        # pred_joints3d = torch.cat([output['kp_3d'].reshape(1, -1, 3)], dim=0)
+                        pred_joints3d = torch.cat([output['kp_3d'].reshape(1, -1, 3)], dim=0)
 
                     mid2 = time.time()
                     fps = 1 / (mid2 - mid1)
@@ -181,22 +267,22 @@ if __name__ == '__main__':
                     # ========= Save results to a pickle file ========= #
                     pred_cam = pred_cam.cpu().numpy()
                     pred_verts = pred_verts.cpu().numpy()
-                    # pred_joints3d = pred_joints3d.cpu().numpy()
+                    pred_joints3d = pred_joints3d.cpu().numpy()
 
                     orig_cam = convert_crop_cam_to_orig_img(
                         cam=pred_cam,
                         bbox=bboxes,
                         img_width=orig_height,
                         img_height=orig_width,
-                        # img_width=img_width,
-                        # img_height=img_height,
                     )
 
                     img_shape = renderer(
-                        pred_verts[0],
+                        verts=pred_verts[0],
                         img=img_shape,
                         cam=orig_cam[0],
                         color_type='purple',
+
+                        # kp_3d=pred_joints3d[0]
                     )
 
                     mid2 = time.time()
@@ -204,11 +290,10 @@ if __name__ == '__main__':
                     print(f'Rendering FPS: {fps:.2f}')
                     mid1 = mid2
 
-                    # Draw one person
-                    break
+                    fps = 1 / (time.time() - pred_time)
+                    print(f'Total FPS: {fps:.2f}\n')
 
-                fps = 1 / (time.time() - pred_time)
-                print(f'Total FPS: {fps:.2f}\n')
+                img_shape = np.concatenate((img_shape, frame), axis=1)   
 
                 cv2.imshow("webcam inference", img_shape)
             

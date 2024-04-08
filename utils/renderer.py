@@ -126,12 +126,9 @@ class PyRenderer_video:
 
         self.Rx = trimesh.transformations.rotation_matrix(math.radians(180), [1, 0, 0])
 
-    def __call__(self, verts, img=np.zeros((224, 224, 3)), cam=np.array([1, 0, 0]),
+    def __call__(self, verts=None, img=np.zeros((224, 224, 3)), cam=np.array([1, 0, 0]),
                  camera_rotation=np.eye(3),
-                 color_type=None, color=[1.0, 1.0, 0.9],):
-
-        mesh = trimesh.Trimesh(vertices=verts, faces=self.faces['smpl'], process=False)
-        mesh.apply_transform(self.Rx)
+                 color_type=None, color=[1.0, 1.0, 0.9], kp_3d=None,):
 
         cam = cam.copy()
         resolution = np.array(img.shape[:2])
@@ -147,20 +144,98 @@ class PyRenderer_video:
         self.renderer.viewport_height = resolution[0]
 
         camera = pyrender.IntrinsicsCamera(fx=5000, fy=5000,
-                                           cx=resolution[1] / 2., cy=resolution[0] / 2.)
+                                        cx=resolution[1] / 2., cy=resolution[0] / 2.)
+        
+        if verts is not None:
+            mesh = trimesh.Trimesh(vertices=verts, faces=self.faces['smpl'], process=False)
+            mesh.apply_transform(self.Rx)
 
+            if color_type != None:
+                color = self.colors_dict[color_type]
+
+            material = pyrender.MetallicRoughnessMaterial(
+                metallicFactor=0.2,
+                roughnessFactor=0.6,
+                alphaMode='OPAQUE',
+                baseColorFactor=(color[0], color[1], color[2], 1.0)
+            )
+
+            mesh = pyrender.Mesh.from_trimesh(mesh, material=material)
+            mesh_node = self.scene.add(mesh, 'mesh')
+
+            camera_pose = np.eye(4)
+            camera_pose[:3, :3] = camera_rotation
+            camera_pose[:3, 3] = camera_rotation @ camera_translation
+            cam_node = self.scene.add(camera, pose=camera_pose)
+
+            render_flags = RenderFlags.RGBA | RenderFlags.SHADOWS_SPOT
+
+            rgb, _ = self.renderer.render(self.scene, flags=render_flags)
+            valid_mask = (rgb[:, :, -1] > 0)[:, :, np.newaxis]
+
+            output_img = rgb[:, :, :-1] * valid_mask * self.vis_ratio + (1 - valid_mask * self.vis_ratio) * img
+            # output_img = rgb[:, :, :] * valid_mask * self.vis_ratio + (1 - valid_mask * self.vis_ratio) * img
+            image = output_img.astype(np.uint8)
+
+            self.scene.remove_node(mesh_node)
+
+        if kp_3d is not None:
+            sm = trimesh.creation.uv_sphere(radius=0.01)
+            sm.visual.vertex_colors = [0.1, 0.1, 1.0]
+            tfs = np.tile(np.eye(4), (len(kp_3d), 1, 1))
+            pts = kp_3d.copy()
+            pts = np.stack((pts[:, 0], -pts[:, 1], pts[:, 2]), axis=1)
+            tfs[:, :3, :3] = Rotation.from_euler('x', 180, degrees=True).as_matrix()
+            tfs[:, :3, 3] = pts
+
+            kp_mesh = pyrender.Mesh.from_trimesh(sm, poses=tfs)
+            kp_mesh_node = self.scene.add(kp_mesh, 'kp')
+
+            rgb, _ = self.renderer.render(self.scene, flags=render_flags)
+
+            valid_mask = (rgb[:, :, -1] > 0)[:, :, np.newaxis]
+            
+            output_img = rgb[:, :, :-1] * valid_mask * self.vis_ratio + (1 - valid_mask * self.vis_ratio) * image
+            image = output_img.astype(np.uint8)
+
+            self.scene.remove_node(kp_mesh_node)
+
+        self.scene.remove_node(cam_node)
+
+        return image
+    
+    def draw_smpl_kp_3d(self, smpl_kp_3d, img=np.zeros((224, 224, 3)), cam=np.array([1, 0, 0]),
+                 camera_rotation=np.eye(3), color_type=None, color=[0.0, 0.0, 1.0]):
+        
+        sm = trimesh.creation.uv_sphere(radius=0.01)
         if color_type != None:
             color = self.colors_dict[color_type]
+        sm.visual.vertex_colors = color
+        tfs = np.tile(np.eye(4), (len(smpl_kp_3d), 1, 1))
+        pts = smpl_kp_3d.copy()
+        pts = np.stack((pts[:, 0], -pts[:, 1], pts[:, 2]), axis=1)
+        tfs[:, :3, :3] = Rotation.from_euler('x', 180, degrees=True).as_matrix()
+        tfs[:, :3, 3] = pts
 
-        material = pyrender.MetallicRoughnessMaterial(
-            metallicFactor=0.2,
-            roughnessFactor=0.6,
-            alphaMode='OPAQUE',
-            baseColorFactor=(color[0], color[1], color[2], 1.0)
-        )
+        mesh = pyrender.Mesh.from_trimesh(sm, poses=tfs)
+        mesh_node = self.scene.add(mesh, 'kp')
 
-        mesh = pyrender.Mesh.from_trimesh(mesh, material=material)
-        mesh_node = self.scene.add(mesh, 'mesh')
+        cam = cam.copy()
+        resolution = np.array(img.shape[:2])
+        if len(cam) ==4:
+            _, sy, tx, ty = cam
+            camera_translation = np.array([- tx, ty, 2 * 5000 / (resolution[0] * sy + 1e-9)])
+        elif len(cam) == 3:
+            sx, tx, ty = cam
+            sy = sx
+            camera_translation = np.array([- tx, ty, 2 * 5000 / (resolution[0] * sy + 1e-9)])
+
+        render_res = resolution
+        self.renderer.viewport_width = render_res[1]
+        self.renderer.viewport_height = render_res[0]
+
+        camera = pyrender.IntrinsicsCamera(fx=5000, fy=5000,
+                                           cx=render_res[1] / 2., cy=render_res[0] / 2.)
 
         camera_pose = np.eye(4)
         camera_pose[:3, :3] = camera_rotation
@@ -176,8 +251,8 @@ class PyRenderer_video:
         # output_img = rgb[:, :, :] * valid_mask * self.vis_ratio + (1 - valid_mask * self.vis_ratio) * img
         image = output_img.astype(np.uint8)
 
-        self.scene.remove_node(cam_node)
         self.scene.remove_node(mesh_node)
+        self.scene.remove_node(cam_node)
 
         return image
 

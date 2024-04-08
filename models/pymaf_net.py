@@ -70,8 +70,10 @@ class Regressor(nn.Module):
 
         pred_rotmat = rot6d_to_rotmat(pred_pose).view(batch_size, 24, 3, 3)
 
+        # fix betas
         pred_output = self.smpl(
-            betas=pred_shape,
+            # betas=pred_shape,
+            betas=init_shape,
             body_pose=pred_rotmat[:, 1:],
             global_orient=pred_rotmat[:, 0].unsqueeze(1),
             pose2rot=False
@@ -118,8 +120,10 @@ class Regressor(nn.Module):
 
         pred_rotmat = rot6d_to_rotmat(pred_pose.contiguous()).view(batch_size, 24, 3, 3)
 
+        # fix betas
         pred_output = self.smpl(
-            betas=pred_shape,
+            # betas=pred_shape,
+            betas=init_shape,
             body_pose=pred_rotmat[:, 1:],
             global_orient=pred_rotmat[:, 0].unsqueeze(1),
             pose2rot=False

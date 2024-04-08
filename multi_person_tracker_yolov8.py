@@ -52,8 +52,13 @@ class MPT8_camera:
         people = dict()
 
         for frame_idx, tracks in enumerate(trackers):
+
+            #
+            idx = 0
+            #
             for d in tracks:
-                person_id = int(d[4])
+                # person_id = int(d[4])
+                person_id = idx
 
                 w, h = d[2] - d[0], d[3] - d[1]
                 c_x, c_y = d[0] + w/2, d[1] + h/2
@@ -62,20 +67,22 @@ class MPT8_camera:
 
                 if person_id in people.keys():
                     people[person_id]['bbox'].append(bbox)
-                    people[person_id]['frames'].append(frame_idx)
+                    # people[person_id]['frames'].append(frame_idx)
                 else:
                     people[person_id] = {
                         'bbox' : [],
-                        'frames' : [],
+                        # 'frames' : [],
                     }
                     people[person_id]['bbox'].append(bbox)
-                    people[person_id]['frames'].append(frame_idx)
+                    # people[person_id]['frames'].append(frame_idx)
+
+                idx += 1
 
         for k in people.keys():
             people[k]['bbox'] = (
                 np.array(people[k]['bbox']).reshape((len(people[k]['bbox']), 4))
             )
-            people[k]['frames'] = np.array(people[k]['frames'])
+            # people[k]['frames'] = np.array(people[k]['frames'])
 
         return people
     

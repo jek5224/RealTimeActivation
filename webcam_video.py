@@ -3,18 +3,15 @@ import time
 import argparse
 import torch
 import numpy as np
-from tqdm import tqdm
 from torchvision.transforms import Normalize
-from torch.utils.data import DataLoader
 
-from core.cfgs import cfg, parse_args
-from models import pymaf_net, SMPL
+from core.cfgs import parse_args
+from models import pymaf_net
 from core import path_config, constants
 from utils.renderer import PyRenderer_video
 from utils.imutils import crop
-from datasets.inference import Inference_camera
 from multi_person_tracker_yolov8 import MPT8_camera
-from utils.demo_utils import convert_crop_cam_to_orig_img, prepare_rendering_results
+from utils.demo_utils import convert_crop_cam_to_orig_img
 from datasets.data_utils.img_utils import get_single_image_crop_demo
 
 MIN_NUM_FRAMES = 1

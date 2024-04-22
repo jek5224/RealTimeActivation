@@ -153,3 +153,23 @@ source pyMAC/bin/activate
 cd {project folder}/
 (pyMAC) python3 main.py
 # (wiht trained_nn) (pyMAC) python3 main.py --checkpoint=trained_nn/lafan_walk_set
+
+```
+# RealTimeActivation
+```
+
+```
+(pyMAC) python3 RealTimeActivation.py
+```
+
+Until now, You need a camera working to view inferences for both video and web camera.
+
+If 'is_video' is True, inference works on a video written in the last line of config/pymaf_config.yaml.
+You can check the source of inference, whether in webcam or video by a red YOLO bounding box.
+Inference source can be switched between webcam and video by pressing 'v'. You may need to press for a long time.
+
+Inference works for one person, but it can handle many people if 'is_one_person' variable is False.
+But this slows down the application a lot.
+
+To visualize inferenced SMPL model on image side, set 'is_SMPL' as True.
+Also, this makes the application slow, so I made it switchable by pressing 's'.

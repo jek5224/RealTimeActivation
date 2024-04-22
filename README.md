@@ -153,7 +153,7 @@ source pyMAC/bin/activate
 cd {project folder}/
 (pyMAC) python3 main.py
 # (with trained_nn) (pyMAC) python3 main.py --checkpoint=trained_nn/lafan_walk_set
-```
+
 
 ```
 # RealTimeActivation
@@ -163,7 +163,7 @@ cd {project folder}/
 (pyMAC) python3 RealTimeActivation.py
 ```
 
-Until now, You need a camera working to view inferences for both video and web camera.
+Until now, You need a web camera connected to the computer to view inferences for both video and web camera.
 
 If 'is_video' is True, inference works on a video written in the last line of config/pymaf_config.yaml.
 You can check the source of inference, whether in webcam or video by a red YOLO bounding box.

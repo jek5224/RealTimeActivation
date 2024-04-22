@@ -153,11 +153,10 @@ source pyMAC/bin/activate
 cd {project folder}/
 (pyMAC) python3 main.py
 # (with trained_nn) (pyMAC) python3 main.py --checkpoint=trained_nn/lafan_walk_set
-
-
 ```
+
+
 # RealTimeActivation
-```
 
 ```
 (pyMAC) python3 RealTimeActivation.py

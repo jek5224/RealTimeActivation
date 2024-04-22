@@ -1,6 +1,6 @@
 import json
 import os
-os.environ['PYOPENGL_PLATFORM'] = 'egl'
+# os.environ['PYOPENGL_PLATFORM'] = 'egl'
 import torch
 import trimesh
 import numpy as np
@@ -79,6 +79,9 @@ class PyRenderer_video:
         self.resolution = (resolution[0] * scale_ratio, resolution[1] * scale_ratio)
 
         self.faces = {'smpl': get_model_faces('smpl'),}
+
+        self.face_num = len(self.faces['smpl'])
+
         self.orig_img = orig_img
         self.wireframe = wireframe
         self.renderer = pyrender.OffscreenRenderer(
@@ -128,7 +131,8 @@ class PyRenderer_video:
 
     def __call__(self, verts=None, img=np.zeros((224, 224, 3)), cam=np.array([1, 0, 0]),
                  camera_rotation=np.eye(3),
-                 color_type=None, color=[1.0, 1.0, 0.9], kp_3d=None,):
+                 color_type='white', color=[1.0, 1.0, 0.9], kp_3d=None,
+                 random=False):
 
         cam = cam.copy()
         resolution = np.array(img.shape[:2])
@@ -146,40 +150,49 @@ class PyRenderer_video:
         camera = pyrender.IntrinsicsCamera(fx=5000, fy=5000,
                                         cx=resolution[1] / 2., cy=resolution[0] / 2.)
         
-        if verts is not None:
-            mesh = trimesh.Trimesh(vertices=verts, faces=self.faces['smpl'], process=False)
-            mesh.apply_transform(self.Rx)
+        mesh = trimesh.Trimesh(vertices=verts, faces=self.faces['smpl'], process=False)
+        mesh.apply_transform(self.Rx)
 
-            if color_type != None:
-                color = self.colors_dict[color_type]
+        if color_type != None:
+            color = self.colors_dict[color_type]
 
-            material = pyrender.MetallicRoughnessMaterial(
-                metallicFactor=0.2,
-                roughnessFactor=0.6,
-                alphaMode='OPAQUE',
-                baseColorFactor=(color[0], color[1], color[2], 1.0)
-            )
+        # material = pyrender.MetallicRoughnessMaterial(
+        #     metallicFactor=0.2,
+        #     roughnessFactor=0.6,
+        #     alphaMode='OPAQUE',
+        #     baseColorFactor=(color[0], color[1], color[2], 1.0)
+        # )
+        mesh.visual.vertex_colors[:] = [int(255 * color[0]), int(255 * color[1]), int(255 * color[2]), 255]
 
-            mesh = pyrender.Mesh.from_trimesh(mesh, material=material)
-            mesh_node = self.scene.add(mesh, 'mesh')
+        # Coloring random faces -> mesh can't be smooth; not proper 
 
-            camera_pose = np.eye(4)
-            camera_pose[:3, :3] = camera_rotation
-            camera_pose[:3, 3] = camera_rotation @ camera_translation
-            cam_node = self.scene.add(camera, pose=camera_pose)
+        if random:
+            rand_num = 20
+            for _ in range(rand_num):
+                start = np.random.randint(0, len(verts) - 20)
+                rand_vert = range(start, start + 20)
+                mesh.visual.vertex_colors[rand_vert] = [0, 0, 255, 255]
 
-            render_flags = RenderFlags.RGBA | RenderFlags.SHADOWS_SPOT
+        mesh = pyrender.Mesh.from_trimesh(mesh)
+        mesh_node = self.scene.add(mesh, 'mesh')
 
-            rgb, _ = self.renderer.render(self.scene, flags=render_flags)
-            valid_mask = (rgb[:, :, -1] > 0)[:, :, np.newaxis]
+        camera_pose = np.eye(4)
+        camera_pose[:3, :3] = camera_rotation
+        camera_pose[:3, 3] = camera_rotation @ camera_translation
+        cam_node = self.scene.add(camera, pose=camera_pose)
 
-            output_img = rgb[:, :, :-1] * valid_mask * self.vis_ratio + (1 - valid_mask * self.vis_ratio) * img
-            # output_img = rgb[:, :, :] * valid_mask * self.vis_ratio + (1 - valid_mask * self.vis_ratio) * img
-            image = output_img.astype(np.uint8)
+        render_flags = RenderFlags.RGBA | RenderFlags.SHADOWS_SPOT
+        rgb, _ = self.renderer.render(self.scene, flags=render_flags)
+        valid_mask = (rgb[:, :, -1] > 0)[:, :, np.newaxis]
 
-            self.scene.remove_node(mesh_node)
+        output_img = rgb[:, :, :-1] * valid_mask * self.vis_ratio + (1 - valid_mask * self.vis_ratio) * img
+        # output_img = rgb[:, :, :] * valid_mask * self.vis_ratio + (1 - valid_mask * self.vis_ratio) * img
+        image = output_img.astype(np.uint8)
+
+        self.scene.remove_node(mesh_node)
 
         if kp_3d is not None:
+            # kp_3d.shape = (24, 3)
             sm = trimesh.creation.uv_sphere(radius=0.01)
             sm.visual.vertex_colors = [0.1, 0.1, 1.0]
             tfs = np.tile(np.eye(4), (len(kp_3d), 1, 1))

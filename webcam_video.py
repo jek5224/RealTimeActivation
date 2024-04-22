@@ -115,6 +115,8 @@ if __name__ == '__main__':
     orig_height = 640
     orig_width = 480
     crop_size = 224
+    import os
+    os.environ['PYOPENGL_PLATFORM'] = 'egl'
     renderer = PyRenderer_video(resolution=(orig_width, orig_height))
     # renderer = PyRenderer_video(resolution=(img_width, img_height))
     # renderer = OpenDRenderer(resolution=(orig_width, orig_height))
@@ -277,7 +279,7 @@ if __name__ == '__main__':
                         verts=pred_verts[0],
                         img=img_shape,
                         cam=orig_cam[0],
-                        color_type='purple',
+                        color_type='white',
 
                         # kp_3d=pred_joints3d[0]
                     )
